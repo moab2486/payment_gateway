@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: cardmgmt
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        upstream app_backend {
+            server card-management-app:8080;
+        }
+
+        server {
+            listen 443 ssl;
+            server_name localhost;
+
+            ssl_certificate     /etc/nginx/certs/tls.crt;
+            ssl_certificate_key /etc/nginx/certs/tls.key;
+            ssl_protocols       TLSv1.2 TLSv1.3;
+
+            location / {
+                proxy_pass http://app_backend;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-For $remote_addr;
+                proxy_set_header X-Forwarded-Proto https;
+            }
+        }
+    }
+
+    stream {
+        upstream tcp_backend {
+            server card-management-app:9090;
+        }
+
+        server {
+            listen 9443 ssl;
+
+            ssl_certificate     /etc/nginx/certs/tls.crt;
+            ssl_certificate_key /etc/nginx/certs/tls.key;
+            ssl_protocols       TLSv1.2 TLSv1.3;
+
+            proxy_pass tcp_backend;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: cardmgmt
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: "card-management-api"
+        metrics_path: /metrics
+        scrape_interval: 5s
+        static_configs:
+          - targets: ["card-management-app:8080"]
+            labels:
+              service: "card-management"
+              environment: "development"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: cardmgmt
+data:
+  prometheus.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: cardmgmt
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: "Card Management"
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-ini
+  namespace: cardmgmt
+data:
+  grafana.ini: |
+    [users]
+    default_theme = dark
+
+    [auth.anonymous]
+    enabled = true
+    org_role = Viewer
+
+    [dashboards]
+    default_home_dashboard_path = /var/lib/grafana/dashboards/red-use-dashboard.json

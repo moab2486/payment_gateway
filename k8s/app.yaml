@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: card-management-app
+  namespace: cardmgmt
+  labels:
+    app: card-management-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: card-management-app
+  template:
+    metadata:
+      labels:
+        app: card-management-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: app
+          image: card-management-app:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: tcp-iso8583
+              containerPort: 9090
+          env:
+            - name: DATABASE__CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: CONNECTION_STRING
+            - name: TCP__LISTENER_PORT
+              value: "9090"
+            - name: HSM__ENDPOINT
+              value: "http://hsm-mock:8080"
+            - name: KAFKA__BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: KAFKA__TOPIC_PREFIX
+              value: "cardmgmt.events"
+            - name: KAFKA__CLIENT_ID
+              value: "card-management-api"
+            - name: DeveloperPortal__ApiKeyCache__RedisConnectionString
+              value: "redis:6379"
+            - name: Notifications__WhatsApp__BaseUrl
+              value: "http://waha:3000"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: card-management-app
+  namespace: cardmgmt
+spec:
+  selector:
+    app: card-management-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: tcp-iso8583
+      port: 9090
+      targetPort: 9090
+  type: ClusterIP

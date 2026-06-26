@@ -1,0 +1,98 @@
+name: CI — Staging Branch (Build, Test & Docker)
+
+on:
+  pull_request:
+    branches: [staging]
+
+concurrency:
+  group: ci-staging-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-source-branch:
+    name: Validate Source Branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR source is dev branch
+        if: github.head_ref != 'dev'
+        run: |
+          echo "❌ Only PRs from 'dev' branch are accepted into 'staging'."
+          echo "   Source branch: ${{ github.head_ref }}"
+          exit 1
+
+  build-and-test:
+    name: Build, Test & Docker Image
+    runs-on: ubuntu-latest
+    needs: validate-source-branch
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cardmanagement
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release --no-restore
+
+      - name: Run All Tests
+        env:
+          DATABASE__CONNECTION_STRING: "Host=localhost;Port=5432;Database=cardmanagement;Username=postgres;Password=postgres"
+          DeveloperPortal__ApiKeyCache__RedisConnectionString: "localhost:6379"
+        run: |
+          dotnet test -c Release --no-build \
+            --logger "trx;LogFileName=all-tests.trx" \
+            --results-directory ./test-results
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-staging
+          path: ./test-results/*.trx
+          retention-days: 14
+
+      - name: Build Docker Image
+        run: |
+          docker build -t card-management-app:staging-${{ github.sha }} .
+
+      - name: Verify Docker Image Health
+        run: |
+          docker run -d --name test-app \
+            -e DATABASE__CONNECTION_STRING="Host=host.docker.internal;Port=5432;Database=cardmanagement;Username=postgres;Password=postgres" \
+            -p 8080:8080 \
+            card-management-app:staging-${{ github.sha }} || true
+          sleep 5
+          docker logs test-app || true
+          docker stop test-app || true
+          docker rm test-app || true

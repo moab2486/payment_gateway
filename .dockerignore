@@ -1,0 +1,33 @@
+# Build artifacts
+**/bin/
+**/obj/
+
+# Version control
+.git/
+.gitignore
+
+# Documentation
+*.md
+
+# Tests
+tests/
+
+# IDE and editor files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Kiro specs
+.kiro/
+
+# Docker files (avoid recursive builds)
+docker-compose*.yml
+Dockerfile
+
+# NuGet local cache
+**/packages/
+
+# OS files
+.DS_Store
+Thumbs.db

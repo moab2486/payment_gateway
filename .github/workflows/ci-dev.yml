@@ -1,0 +1,94 @@
+name: CI — Dev Branch (Build & Test)
+
+on:
+  pull_request:
+    branches: [dev]
+
+concurrency:
+  group: ci-dev-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cardmanagement
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release --no-restore
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test tests/CardManagement.Tests/CardManagement.Tests.csproj \
+            -c Release --no-build \
+            --logger "trx;LogFileName=unit-tests.trx" \
+            --results-directory ./test-results
+
+      - name: Run Platform Services Unit Tests
+        run: |
+          dotnet test tests/CardManagement.PlatformServices.UnitTests/CardManagement.PlatformServices.UnitTests.csproj \
+            -c Release --no-build \
+            --logger "trx;LogFileName=platform-unit-tests.trx" \
+            --results-directory ./test-results
+
+      - name: Run Integration Tests
+        env:
+          DATABASE__CONNECTION_STRING: "Host=localhost;Port=5432;Database=cardmanagement;Username=postgres;Password=postgres"
+          DeveloperPortal__ApiKeyCache__RedisConnectionString: "localhost:6379"
+        run: |
+          dotnet test tests/CardManagement.PlatformServices.IntegrationTests/CardManagement.PlatformServices.IntegrationTests.csproj \
+            -c Release --no-build \
+            --logger "trx;LogFileName=integration-tests.trx" \
+            --results-directory ./test-results
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: ./test-results/*.trx
+          retention-days: 7
+
+      - name: Publish Test Summary
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: ./test-results/*.trx
+          reporter: dotnet-trx

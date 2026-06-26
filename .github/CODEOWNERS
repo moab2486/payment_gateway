@@ -1,0 +1,17 @@
+# Code Owners — required reviewers for prod PRs
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+*                       @team-leads
+
+# Infrastructure changes require platform team review
+terraform/              @platform-team
+k8s/                    @platform-team
+docker-compose.yml      @platform-team
+Dockerfile              @platform-team
+
+# Observability
+observability/          @platform-team @sre-team
+
+# CI/CD workflows
+.github/                @platform-team @team-leads

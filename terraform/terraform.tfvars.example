@@ -1,0 +1,34 @@
+# Copy this file to terraform.tfvars and fill in your values
+# cp terraform.tfvars.example terraform.tfvars
+
+project_name           = "cardmgmt"
+environment            = "dev"
+location               = "westeurope"
+
+# AKS
+aks_node_count         = 3
+aks_node_vm_size       = "Standard_D4s_v3"
+aks_kubernetes_version = "1.29"
+
+# PostgreSQL
+postgres_sku            = "B_Standard_B2s"
+postgres_storage_mb     = 32768
+postgres_admin_username = "pgadmin"
+postgres_admin_password = "CHANGE_ME_strong_password_123!"
+
+# Redis
+redis_sku      = "Standard"
+redis_capacity = 1
+
+# Container Registry
+acr_sku = "Standard"
+
+# App
+app_image_tag = "latest"
+
+# Tags
+tags = {
+  project    = "card-management"
+  team       = "payments"
+  cost_center = "engineering"
+}

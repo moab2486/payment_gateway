@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waha
+  namespace: cardmgmt
+  labels:
+    app: waha
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: waha
+  template:
+    metadata:
+      labels:
+        app: waha
+    spec:
+      containers:
+        - name: waha
+          image: devlikeapro/waha:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: WHATSAPP_DEFAULT_ENGINE
+              value: "WEBJS"
+            - name: WAHA_PRINT_QR
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /api/sessions
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/sessions
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: waha
+  namespace: cardmgmt
+spec:
+  selector:
+    app: waha
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
