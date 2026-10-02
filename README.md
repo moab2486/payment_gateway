@@ -1,4 +1,4 @@
-# Card Management System
+# Payment Gateway System
 
 A payment gateway platform built with .NET 8, providing virtual card issuance, account balance management, ISO 8583 payment protocol processing, and multi-channel payment integration. The system uses a clean architecture with domain-driven design, backed by PostgreSQL and integrated with Kafka for event streaming.
 
